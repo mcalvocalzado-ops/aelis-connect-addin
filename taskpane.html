@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Aelis Connect</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;padding:20px;color:#1F2937;background:#fff;}
+  h1{font-size:16px;color:#0F2A43;margin:0 0 16px;}
+  .card{border:1px solid #E2E6ED;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;}
+  .kv{display:flex;justify-content:space-between;margin-bottom:8px;gap:12px;}
+  .kv:last-child{margin-bottom:0;}
+  .kv span{color:#6B7280;flex-shrink:0;}
+  .kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;}
+  button{background:#2F6FED;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  .hint{font-size:12px;color:#9CA3AF;margin-top:10px;line-height:1.5;}
+  .msg{font-size:13px;border-radius:8px;padding:12px;margin-bottom:14px;}
+  .msg.ok{background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;}
+  .msg.err{background:#FEF2F2;color:#7F1D1D;border:1px solid #FCA5A5;}
+  .attachment{font-size:12.5px;color:#374151;margin-bottom:4px;}
+  .attachment:last-child{margin-bottom:0;}
+</style>
+</head>
+<body>
+  <h1>Aelis Connect · Sage 200</h1>
+  <div id="datos" class="card">Cargando datos del correo…</div>
+  <div id="adjuntos"></div>
+  <div id="mensaje"></div>
+  <button id="btnCrear" disabled>Crear presupuesto en Sage 200</button>
+  <div class="hint">Se leerá el cuerpo del correo y los archivos adjuntos compatibles (PDF, Excel, Word, texto) y se enviarán a Sage 200 para generar el presupuesto.</div>
+  <script type="module" src="taskpane.js"></script>
+</body>
+</html>
