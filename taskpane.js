@@ -30,22 +30,33 @@ async function initMsal() {
 // token SIEMPRE es un JWT firmado pensado justo para que el propio backend
 // identifique al usuario — con la audiencia de NUESTRA app (CLIENT_ID), no
 // la de Graph.
+//
+// OJO: acquireTokenSilent (incluso con forceRefresh) renueva el access
+// token pero NO el id_token — MSAL sigue devolviendo el id_token cacheado
+// de la autenticación original, que caduca a la hora. Comprobamos su "exp"
+// nosotros mismos y forzamos una reautenticación real (popup) si ya venció.
+function idTokenCaducado(idTokenClaims) {
+  if (!idTokenClaims || typeof idTokenClaims.exp !== "number") return true;
+  return idTokenClaims.exp <= Math.floor(Date.now() / 1000);
+}
+
 async function acquireIdToken() {
   await initMsal();
-  // forceRefresh: true — MSAL a veces devuelve un id_token cacheado aunque
-  // renueve el access_token por debajo; sin esto el backend puede rechazar
-  // el token por caducado ("exp" claim) aunque la sesión siga activa.
-  const tokenRequest = { scopes: ["User.Read"], forceRefresh: true };
+  const tokenRequest = { scopes: ["User.Read"] };
+  let resultado;
   try {
-    const resultado = await msalInstance.acquireTokenSilent(tokenRequest);
-    return resultado.idToken;
+    resultado = await msalInstance.acquireTokenSilent(tokenRequest);
+    if (idTokenCaducado(resultado.idTokenClaims)) {
+      resultado = await msalInstance.acquireTokenPopup(tokenRequest);
+    }
   } catch (err) {
     if (err instanceof InteractionRequiredAuthError) {
-      const resultado = await msalInstance.acquireTokenPopup(tokenRequest);
-      return resultado.idToken;
+      resultado = await msalInstance.acquireTokenPopup(tokenRequest);
+    } else {
+      throw err;
     }
-    throw err;
   }
+  return resultado.idToken;
 }
 
 Office.onReady(() => {
