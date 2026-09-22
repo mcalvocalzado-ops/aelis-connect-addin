@@ -55,8 +55,11 @@ Office.onReady(() => {
     '<div class="kv"><span>Email</span><b>' + escapeHtml(emailRemitente) + "</b></div>" +
     '<div class="kv"><span>Asunto</span><b>' + escapeHtml(item.subject || "") + "</b></div>";
 
+  // isInline descarta las imágenes incrustadas en el cuerpo (logos de firma,
+  // etc.): Outlook las expone como adjuntos de tipo File igual que un archivo
+  // real, pero no son documentos que el comercial haya adjuntado a mano.
   const adjuntos = (item.attachments || []).filter(
-    (a) => a.attachmentType === Office.MailboxEnums.AttachmentType.File,
+    (a) => a.attachmentType === Office.MailboxEnums.AttachmentType.File && !a.isInline,
   );
   if (adjuntos.length > 0) {
     adjuntosDiv.innerHTML =
