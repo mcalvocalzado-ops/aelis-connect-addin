@@ -9,6 +9,7 @@ import { createNestablePublicClientApplication, InteractionRequiredAuthError } f
 const CLIENT_ID = "d6bbe6d2-4287-45fd-b976-86cbdf8047ef";
 const TENANT_ID = "3ec777bd-8b86-46a8-800f-6d98eab6bc39";
 const BACKEND_URL = "https://sage200-mcp.greenbeach-fdb4a5bf.westeurope.azurecontainerapps.io/addin/generar-presupuesto";
+const ESTADO_URL_BASE = "https://sage200-mcp.greenbeach-fdb4a5bf.westeurope.azurecontainerapps.io/addin/estado/";
 
 let msalInstance;
 
@@ -118,10 +119,33 @@ function leerAdjunto(item, attachmentId) {
   });
 }
 
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Poll del estado del trabajo en segundo plano: leer PDFs/imágenes reales
+// con el agente puede tardar bastante más que el límite de respuesta
+// síncrona de Power Automate, así que el backend responde al momento con un
+// jobId y aquí preguntamos periódicamente hasta que termine.
+async function esperarResultado(jobId, mensajeDiv) {
+  const intentosMax = 40; // 40 x 5s = hasta ~3'20" de margen
+  for (let intento = 1; intento <= intentosMax; intento++) {
+    await esperar(5000);
+    const respuesta = await fetch(ESTADO_URL_BASE + jobId);
+    if (!respuesta.ok) continue;
+    const estado = await respuesta.json();
+    if (estado.estado === "listo") return estado;
+    if (estado.estado === "error") throw new Error(estado.errorMensaje || "No se pudo crear el presupuesto.");
+    mensajeDiv.innerHTML =
+      '<div class="msg">Creando presupuesto en Sage 200… (puede tardar 1-3 minutos si hay documentos que leer)</div>';
+  }
+  throw new Error("Está tardando más de lo esperado. Puede que se haya creado igualmente — revisa tu correo en unos minutos.");
+}
+
 async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, mensajeDiv) {
   boton.disabled = true;
   boton.textContent = "Creando presupuesto…";
-  mensajeDiv.innerHTML = "";
+  mensajeDiv.innerHTML = '<div class="msg">Leyendo el correo…</div>';
 
   try {
     const idToken = await acquireIdToken();
@@ -158,6 +182,10 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
       const detalle = await respuesta.json().catch(() => ({}));
       throw new Error(detalle.error_description || "Error " + respuesta.status);
     }
+
+    const { jobId } = await respuesta.json();
+    mensajeDiv.innerHTML = '<div class="msg">Creando presupuesto en Sage 200…</div>';
+    await esperarResultado(jobId, mensajeDiv);
 
     mensajeDiv.innerHTML =
       '<div class="msg ok">Presupuesto creado en Sage 200. Se ha enviado un correo de confirmación a ' +
