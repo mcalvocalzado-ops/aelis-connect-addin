@@ -16,7 +16,6 @@
   <SupportUrl DefaultValue="https://aelis.es"/>
   <AppDomains>
     <AppDomain>https://sage200-mcp.greenbeach-fdb4a5bf.westeurope.azurecontainerapps.io</AppDomain>
-    <AppDomain>https://login.microsoftonline.com</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Mailbox"/>
