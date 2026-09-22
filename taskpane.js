@@ -32,7 +32,10 @@ async function initMsal() {
 // la de Graph.
 async function acquireIdToken() {
   await initMsal();
-  const tokenRequest = { scopes: ["User.Read"] };
+  // forceRefresh: true — MSAL a veces devuelve un id_token cacheado aunque
+  // renueve el access_token por debajo; sin esto el backend puede rechazar
+  // el token por caducado ("exp" claim) aunque la sesión siga activa.
+  const tokenRequest = { scopes: ["User.Read"], forceRefresh: true };
   try {
     const resultado = await msalInstance.acquireTokenSilent(tokenRequest);
     return resultado.idToken;
