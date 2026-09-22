@@ -24,16 +24,22 @@ async function initMsal() {
   }
 }
 
-async function acquireAccessToken() {
+// Enviamos el ID token, no el access token: el access token de Microsoft
+// Graph puede venir cifrado (Microsoft lo documenta como un blob opaco, no
+// garantiza que sea un JWT verificable por terceros), mientras que el ID
+// token SIEMPRE es un JWT firmado pensado justo para que el propio backend
+// identifique al usuario — con la audiencia de NUESTRA app (CLIENT_ID), no
+// la de Graph.
+async function acquireIdToken() {
   await initMsal();
   const tokenRequest = { scopes: ["User.Read"] };
   try {
     const resultado = await msalInstance.acquireTokenSilent(tokenRequest);
-    return resultado.accessToken;
+    return resultado.idToken;
   } catch (err) {
     if (err instanceof InteractionRequiredAuthError) {
       const resultado = await msalInstance.acquireTokenPopup(tokenRequest);
-      return resultado.accessToken;
+      return resultado.idToken;
     }
     throw err;
   }
@@ -104,7 +110,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
   mensajeDiv.innerHTML = "";
 
   try {
-    const accessToken = await acquireAccessToken();
+    const idToken = await acquireIdToken();
     const cuerpoCorreo = await leerCuerpoCorreo(item);
 
     const adjuntosLeidos = [];
@@ -125,7 +131,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 
     const respuesta = await fetch(BACKEND_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({
         asunto: item.subject || "",
         cuerpoCorreo: cuerpoCorreo,
