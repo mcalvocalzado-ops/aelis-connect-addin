@@ -31,6 +31,10 @@
   <div id="mensaje"></div>
   <button id="btnCrear" disabled>Crear presupuesto en Sage 200</button>
   <div class="hint">Se leerá el cuerpo del correo y los archivos adjuntos compatibles (PDF, Excel, Word, texto) y se enviarán a Sage 200 para generar el presupuesto.</div>
-  <script type="module" src="taskpane.js"></script>
+  <!-- ?v= al final: Outlook (WebView2) cachea agresivamente taskpane.js sin
+       respetar cabeceras normales; sin un query string distinto en cada
+       cambio, sigue sirviendo la versión anterior aunque el archivo remoto
+       ya esté actualizado. Subir este número cada vez que cambie taskpane.js. -->
+  <script type="module" src="taskpane.js?v=3"></script>
 </body>
 </html>
