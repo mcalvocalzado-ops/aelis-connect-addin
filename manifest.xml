@@ -6,8 +6,8 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MailApp">
 
-  <Id>33bacd77-37b9-406b-8154-36815a2fe8a6</Id>
-  <Version>1.0.0.0</Version>
+  <Id>3896baac-5e60-44e4-9e4a-0d7c794966c4</Id>
+  <Version>1.0.0.1</Version>
   <ProviderName>Aelis Consulting</ProviderName>
   <DefaultLocale>es-ES</DefaultLocale>
   <DisplayName DefaultValue="Aelis Connect"/>
