@@ -111,7 +111,7 @@ function esperar(ms) {
 }
 
 async function esperarResultado(jobId, mensajeDiv) {
-        const intentosMax = 90;
+        const intentosMax = 180;
         for (let intento = 1; intento <= intentosMax; intento++) {
                   await esperar(10000);
                   const respuesta = await fetch(ESTADO_URL_BASE + jobId);
