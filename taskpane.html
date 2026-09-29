@@ -4,29 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Aelis Connect</title>
+<title>Aelis Instant</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;padding:20px;color:#1F2937;background:#fff;}
-  h1{font-size:16px;color:#0F2A43;margin:0 0 16px;}
-  .card{border:1px solid #E2E6ED;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;}
+  :root{
+    --bg:#f4faf6;
+    --card:#ffffff;
+    --border:#c9ebd7;
+    --text:#0b2416;
+    --muted:#5b8271;
+    --accent:#16a34a;
+    --accent-dark:#0f2c1c;
+    --accent-soft:#e6f9ee;
+  }
+  body{font-family:system-ui,sans-serif;margin:0;padding:20px;color:var(--text);background:var(--bg);}
+  h1{font-size:16px;color:var(--text);margin:0 0 16px;display:flex;align-items:center;gap:8px;}
+  h1 img{width:26px;height:26px;border-radius:7px;}
+  .card{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;box-shadow:0 1px 2px rgba(11,36,22,.04);}
   .kv{display:flex;justify-content:space-between;margin-bottom:8px;gap:12px;}
   .kv:last-child{margin-bottom:0;}
-  .kv span{color:#6B7280;flex-shrink:0;}
-  .kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;}
-  button{background:#2F6FED;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;margin-bottom:10px;}
-  button:disabled{opacity:.5;cursor:default;}
-  button.secundario{background:#fff;color:#2F6FED;border:1px solid #2F6FED;}
-  .hint{font-size:12px;color:#9CA3AF;margin-top:10px;line-height:1.5;}
-  .msg{font-size:13px;border-radius:8px;padding:12px;margin-bottom:14px;}
-  .msg.ok{background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;}
-  .msg.err{background:#FEF2F2;color:#7F1D1D;border:1px solid #FCA5A5;}
-  .attachment{font-size:12.5px;color:#374151;margin-bottom:4px;}
+  .kv span{color:var(--muted);flex-shrink:0;}
+  .kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;color:var(--text);}
+  button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 6px rgba(22,163,74,.25);}
+  button:hover:not(:disabled){background:#128a3e;}
+  button:disabled{opacity:.45;cursor:default;box-shadow:none;}
+  button.secundario{background:var(--card);color:var(--accent);border:1.5px solid var(--accent);box-shadow:none;}
+  button.secundario:hover:not(:disabled){background:var(--accent-soft);}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .msg{font-size:13px;border-radius:8px;padding:12px;margin-bottom:14px;background:var(--card);border:1px solid var(--border);color:var(--text);}
+  .msg.ok{background:var(--accent-soft);color:#0f2c1c;border:1px solid var(--accent);}
+  .msg.err{background:#fef2f2;color:#7f1d1d;border:1px solid #fca5a5;}
+  .attachment{font-size:12.5px;color:var(--muted);margin-bottom:4px;}
   .attachment:last-child{margin-bottom:0;}
+  a{color:var(--accent);font-weight:600;}
 </style>
 </head>
 <body>
-  <h1>Aelis Connect · Sage 200</h1>
+  <h1><img src="icon-32.png" alt="">Aelis Instant · Sage 200</h1>
   <div id="datos" class="card">Cargando datos del correo…</div>
   <div id="adjuntos"></div>
   <div id="mensaje"></div>
@@ -37,6 +51,6 @@
        respetar cabeceras normales; sin un query string distinto en cada
        cambio, sigue sirviendo la versión anterior aunque el archivo remoto
        ya esté actualizado. Subir este número cada vez que cambie taskpane.js. -->
-  <script type="module" src="taskpane.js?v=4"></script>
+  <script type="module" src="taskpane.js?v=7"></script>
 </body>
 </html>
