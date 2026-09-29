@@ -8,35 +8,36 @@
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
   :root{
-    --bg:#f4faf6;
+    /* Colores corporativos Aelis: negro del wordmark + verde de acento del logo */
+    --bg:#fafafa;
     --card:#ffffff;
-    --border:#c9ebd7;
-    --text:#0b2416;
-    --muted:#5b8271;
-    --accent:#16a34a;
-    --accent-dark:#0f2c1c;
-    --accent-soft:#e6f9ee;
+    --border:#e2e2e2;
+    --text:#191919;
+    --muted:#767676;
+    --accent:#30f9a8;
+    --accent-text:#0b2b1e;
+    --accent-soft:#e5fff3;
   }
   body{font-family:system-ui,sans-serif;margin:0;padding:20px;color:var(--text);background:var(--bg);}
-  h1{font-size:16px;color:var(--text);margin:0 0 16px;display:flex;align-items:center;gap:8px;}
+  h1{font-size:16px;color:var(--text);margin:0 0 16px;display:flex;align-items:center;gap:8px;font-weight:700;}
   h1 img{width:26px;height:26px;border-radius:7px;}
-  .card{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;box-shadow:0 1px 2px rgba(11,36,22,.04);}
+  .card{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
   .kv{display:flex;justify-content:space-between;margin-bottom:8px;gap:12px;}
   .kv:last-child{margin-bottom:0;}
   .kv span{color:var(--muted);flex-shrink:0;}
   .kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;color:var(--text);}
-  button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 6px rgba(22,163,74,.25);}
-  button:hover:not(:disabled){background:#128a3e;}
+  button{background:var(--accent);color:var(--accent-text);border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:700;width:100%;cursor:pointer;margin-bottom:10px;}
+  button:hover:not(:disabled){background:#1fe396;}
   button:disabled{opacity:.45;cursor:default;box-shadow:none;}
-  button.secundario{background:var(--card);color:var(--accent);border:1.5px solid var(--accent);box-shadow:none;}
+  button.secundario{background:var(--card);color:var(--text);border:1.5px solid var(--text);box-shadow:none;}
   button.secundario:hover:not(:disabled){background:var(--accent-soft);}
   .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;}
   .msg{font-size:13px;border-radius:8px;padding:12px;margin-bottom:14px;background:var(--card);border:1px solid var(--border);color:var(--text);}
-  .msg.ok{background:var(--accent-soft);color:#0f2c1c;border:1px solid var(--accent);}
+  .msg.ok{background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--accent);}
   .msg.err{background:#fef2f2;color:#7f1d1d;border:1px solid #fca5a5;}
   .attachment{font-size:12.5px;color:var(--muted);margin-bottom:4px;}
   .attachment:last-child{margin-bottom:0;}
-  a{color:var(--accent);font-weight:600;}
+  a{color:var(--text);font-weight:700;text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:2px;}
   .oculto{display:none;}
 </style>
 </head>
@@ -55,6 +56,6 @@
        respetar cabeceras normales; sin un query string distinto en cada
        cambio, sigue sirviendo la versión anterior aunque el archivo remoto
        ya esté actualizado. Subir este número cada vez que cambie taskpane.js. -->
-  <script type="module" src="taskpane.js?v=9"></script>
+  <script type="module" src="taskpane.js?v=10"></script>
 </body>
 </html>
