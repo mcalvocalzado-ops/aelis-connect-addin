@@ -218,6 +218,21 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
     });
 
     const data = await respuesta.json().catch(() => ({}));
+
+    if (respuesta.status === 409 && data.error === "articulos_ambiguos" && data.urlSeleccion) {
+      // El botón principal ya tiene su listener de crearPresupuesto puesto con
+      // addEventListener en Office.onReady - no se le puede reasignar el click aquí sin que se
+      // dispare también ese listener. Se deja deshabilitado y solo el botón secundario, que no
+      // tiene ningún listener previo, abre la página de selección.
+      mensajeDiv.innerHTML =
+        '<div class="msg">Algunos artículos no se identificaron con seguridad - elígelos a mano para continuar.</div>';
+      boton.textContent = "Elegir artículos primero";
+      botonVisualizar.classList.remove("oculto");
+      botonVisualizar.textContent = "Elegir artículos";
+      botonVisualizar.onclick = () => window.open(data.urlSeleccion, "_blank");
+      return;
+    }
+
     if (!respuesta.ok) {
       throw new Error(data.error_description || "Error " + respuesta.status);
     }
