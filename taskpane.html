@@ -14,8 +14,9 @@
   .kv:last-child{margin-bottom:0;}
   .kv span{color:#6B7280;flex-shrink:0;}
   .kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;}
-  button{background:#2F6FED;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;}
+  button{background:#2F6FED;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;width:100%;cursor:pointer;margin-bottom:10px;}
   button:disabled{opacity:.5;cursor:default;}
+  button.secundario{background:#fff;color:#2F6FED;border:1px solid #2F6FED;}
   .hint{font-size:12px;color:#9CA3AF;margin-top:10px;line-height:1.5;}
   .msg{font-size:13px;border-radius:8px;padding:12px;margin-bottom:14px;}
   .msg.ok{background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;}
@@ -30,11 +31,12 @@
   <div id="adjuntos"></div>
   <div id="mensaje"></div>
   <button id="btnCrear" disabled>Crear presupuesto en Sage 200</button>
-  <div class="hint">Se leerá el cuerpo del correo y los archivos adjuntos compatibles (PDF, Excel, Word, texto) y se enviarán a Sage 200 para generar el presupuesto.</div>
+  <button id="btnCrearPedido" class="secundario" disabled>Crear pedido en Sage 200</button>
+  <div class="hint">Se leerá el cuerpo del correo y los archivos adjuntos compatibles (imágenes, Excel, Word, texto) y se enviarán a Sage 200. El pedido queda pendiente de que alguien lo revise y confirme antes de crearse; el presupuesto se envía directamente al cliente para confirmar por email.</div>
   <!-- ?v= al final: Outlook (WebView2) cachea agresivamente taskpane.js sin
        respetar cabeceras normales; sin un query string distinto en cada
        cambio, sigue sirviendo la versión anterior aunque el archivo remoto
        ya esté actualizado. Subir este número cada vez que cambie taskpane.js. -->
-  <script type="module" src="taskpane.js?v=3"></script>
+  <script type="module" src="taskpane.js?v=4"></script>
 </body>
 </html>
