@@ -95,9 +95,11 @@ Office.onReady(() => {
       "</div>";
   }
 
+  const seleccionDiv = document.getElementById("seleccionArticulos");
+
   botonCrear.disabled = false;
   botonCrear.addEventListener("click", () =>
-    crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, botonCrear, botonVisualizar, mensajeDiv),
+    crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, botonCrear, botonVisualizar, mensajeDiv, seleccionDiv),
   );
 });
 
@@ -176,10 +178,11 @@ async function subirAdjunto(idToken, nombreArchivo, contentType, contenidoBase64
   return respuesta.json();
 }
 
-async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, botonVisualizar, mensajeDiv) {
+async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
   boton.disabled = true;
   boton.textContent = "Creando presupuesto…";
   mensajeDiv.innerHTML = "";
+  seleccionDiv.innerHTML = "";
   botonVisualizar.classList.add("oculto");
 
   try {
@@ -219,17 +222,11 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 
     const data = await respuesta.json().catch(() => ({}));
 
-    if (respuesta.status === 409 && data.error === "articulos_ambiguos" && data.urlSeleccion) {
-      // El botón principal ya tiene su listener de crearPresupuesto puesto con
-      // addEventListener en Office.onReady - no se le puede reasignar el click aquí sin que se
-      // dispare también ese listener. Se deja deshabilitado y solo el botón secundario, que no
-      // tiene ningún listener previo, abre la página de selección.
+    if (respuesta.status === 409 && data.error === "articulos_ambiguos" && Array.isArray(data.pendientes)) {
       mensajeDiv.innerHTML =
-        '<div class="msg">Algunos artículos no se identificaron con seguridad - elígelos a mano para continuar.</div>';
-      boton.textContent = "Elegir artículos primero";
-      botonVisualizar.classList.remove("oculto");
-      botonVisualizar.textContent = "Elegir artículos";
-      botonVisualizar.onclick = () => window.open(data.urlSeleccion, "_blank");
+        '<div class="msg">Algunos artículos no se identificaron con seguridad - elige cuál es cada uno.</div>';
+      boton.textContent = "Elige los artículos arriba";
+      pintarSeleccionArticulos(idToken, data.token, data.pendientes, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
       return;
     }
 
@@ -253,4 +250,73 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
     boton.disabled = false;
     boton.textContent = "Crear presupuesto en Sage 200";
   }
+}
+
+// Pinta un <select> por cada línea que el backend no pudo resolver solo (ver respuesta 409
+// articulos_ambiguos de /generar-presupuesto) directamente en el propio taskpane, en vez de
+// abrir una pestaña aparte - el comercial elige y sigue sin salir de Outlook.
+function pintarSeleccionArticulos(idToken, token, pendientes, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+  seleccionDiv.innerHTML =
+    pendientes
+      .map((p, i) => {
+        const opciones = p.candidatos
+          .map(
+            (c) =>
+              `<option value="${escapeHtml(c.articulo)}">${escapeHtml(c.descripcion)} · ${escapeHtml(c.precioUnitario.toFixed(2))} €</option>`,
+          )
+          .join("");
+        return (
+          '<div class="card linea-pendiente">' +
+          `<div class="original">${escapeHtml(p.descripcionOriginal)} (x${escapeHtml(p.cantidad)})</div>` +
+          `<select data-indice="${i}"><option value="" disabled selected>Elige un artículo…</option>${opciones}</select>` +
+          "</div>"
+        );
+      })
+      .join("") +
+    '<button id="btnConfirmarSeleccion" style="margin-top:4px;">Confirmar artículos y crear presupuesto</button>';
+
+  const selects = Array.from(seleccionDiv.querySelectorAll("select"));
+  const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
+
+  botonConfirmar.addEventListener("click", async () => {
+    const codigosElegidos = selects.map((s) => s.value);
+    if (codigosElegidos.some((c) => !c)) {
+      mensajeDiv.innerHTML = '<div class="msg err">Elige un artículo en cada línea antes de continuar.</div>';
+      return;
+    }
+
+    botonConfirmar.disabled = true;
+    botonConfirmar.textContent = "Creando presupuesto…";
+    mensajeDiv.innerHTML = "";
+
+    try {
+      const respuesta = await fetch(`${BASE_URL}/completar-seleccion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ token, codigosElegidos }),
+      });
+      const data = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) {
+        throw new Error(data.error_description || "Error " + respuesta.status);
+      }
+
+      seleccionDiv.innerHTML = "";
+      mensajeDiv.innerHTML =
+        '<div class="msg ok">Presupuesto creado en Sage 200. Se ha enviado un correo de confirmación a ' +
+        escapeHtml(emailRemitente) +
+        ".</div>";
+      boton.textContent = "Presupuesto creado";
+
+      if (data.urlOferta) {
+        botonVisualizar.classList.remove("oculto");
+        botonVisualizar.textContent = "Visualizar oferta";
+        botonVisualizar.onclick = () => window.open(data.urlOferta, "_blank");
+      }
+    } catch (err) {
+      mensajeDiv.innerHTML =
+        '<div class="msg err">No se pudo crear el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
+      botonConfirmar.disabled = false;
+      botonConfirmar.textContent = "Confirmar artículos y crear presupuesto";
+    }
+  });
 }

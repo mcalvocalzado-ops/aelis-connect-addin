@@ -39,6 +39,9 @@
   .attachment:last-child{margin-bottom:0;}
   a{color:var(--text);font-weight:700;text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:2px;}
   .oculto{display:none;}
+  .linea-pendiente{margin-bottom:12px;}
+  .linea-pendiente .original{font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+  .linea-pendiente select{width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;background:var(--card);color:var(--text);}
 </style>
 </head>
 <body>
@@ -46,6 +49,7 @@
   <div id="datos" class="card">Cargando datos del correo…</div>
   <div id="adjuntos"></div>
   <div id="mensaje"></div>
+  <div id="seleccionArticulos"></div>
 
   <button id="btnCrear" disabled>Crear presupuesto en Sage 200</button>
   <button id="btnVisualizar" class="secundario oculto">Visualizar oferta</button>
@@ -56,6 +60,6 @@
        respetar cabeceras normales; sin un query string distinto en cada
        cambio, sigue sirviendo la versión anterior aunque el archivo remoto
        ya esté actualizado. Subir este número cada vez que cambie taskpane.js. -->
-  <script type="module" src="taskpane.js?v=11"></script>
+  <script type="module" src="taskpane.js?v=12"></script>
 </body>
 </html>
