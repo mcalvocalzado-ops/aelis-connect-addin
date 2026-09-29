@@ -7,11 +7,11 @@
   xsi:type="MailApp">
 
   <Id>3896baac-5e60-44e4-9e4a-0d7c794966c4</Id>
-  <Version>1.0.0.3</Version>
+  <Version>1.0.0.4</Version>
   <ProviderName>Aelis Consulting</ProviderName>
   <DefaultLocale>es-ES</DefaultLocale>
-  <DisplayName DefaultValue="Aelis Instant"/>
-  <Description DefaultValue="Crea presupuestos y pedidos en Sage 200 al instante a partir de un correo de pedido."/>
+  <DisplayName DefaultValue="Aelis Presupuesto"/>
+  <Description DefaultValue="Crea presupuestos en Sage 200 a partir de un correo de pedido."/>
   <IconUrl DefaultValue="https://mcalvocalzado-ops.github.io/aelis-connect-addin/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://mcalvocalzado-ops.github.io/aelis-connect-addin/icon-80.png"/>
   <SupportUrl DefaultValue="https://mcalvocalzado-ops.github.io/aelis-connect-addin/"/>
@@ -94,10 +94,10 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GroupLabel" DefaultValue="Aelis"/>
-        <bt:String id="Firma.Label" DefaultValue="Aelis Instant"/>
+        <bt:String id="Firma.Label" DefaultValue="Aelis Presupuesto"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="Firma.Tooltip" DefaultValue="Crea al instante un presupuesto o un pedido en Sage 200 a partir de este correo."/>
+        <bt:String id="Firma.Tooltip" DefaultValue="Crea un presupuesto en Sage 200 a partir de este correo."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
