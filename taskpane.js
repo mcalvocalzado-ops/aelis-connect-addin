@@ -207,7 +207,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
       }
     }
 
-    mensajeDiv.innerHTML = '<div class="msg">Creando presupuesto en Sage 200…</div>';
+    mensajeDiv.innerHTML = '<div class="msg">Interpretando el correo…</div>';
 
     const respuesta = await fetch(`${BASE_URL}/generar-presupuesto`, {
       method: "POST",
@@ -221,61 +221,62 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
     });
 
     const data = await respuesta.json().catch(() => ({}));
-
-    if (respuesta.status === 409 && data.error === "articulos_ambiguos" && Array.isArray(data.pendientes)) {
-      mensajeDiv.innerHTML =
-        '<div class="msg">Algunos artículos no se identificaron con seguridad - elige cuál es cada uno.</div>';
-      boton.textContent = "Elige los artículos arriba";
-      pintarSeleccionArticulos(idToken, data.token, data.pendientes, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
-      return;
-    }
-
     if (!respuesta.ok) {
       throw new Error(data.error_description || "Error " + respuesta.status);
     }
 
-    mensajeDiv.innerHTML =
-      '<div class="msg ok">Presupuesto creado en Sage 200. Se ha enviado un correo de confirmación a ' +
-      escapeHtml(emailRemitente) +
-      ".</div>";
-    boton.textContent = "Presupuesto creado";
-
-    if (data.urlOferta) {
-      botonVisualizar.classList.remove("oculto");
-      botonVisualizar.onclick = () => window.open(data.urlOferta, "_blank");
-    }
+    mensajeDiv.innerHTML = "";
+    boton.textContent = "Revisa los datos abajo";
+    pintarRevision(idToken, data, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
   } catch (err) {
     mensajeDiv.innerHTML =
-      '<div class="msg err">No se pudo crear el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
+      '<div class="msg err">No se pudo generar el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
     boton.disabled = false;
-    boton.textContent = "Crear presupuesto en Sage 200";
+    boton.textContent = "Revisar presupuesto";
   }
 }
 
-// Pinta un <select> por cada línea que el backend no pudo resolver solo (ver respuesta 409
-// articulos_ambiguos de /generar-presupuesto) directamente en el propio taskpane, en vez de
-// abrir una pestaña aparte - el comercial elige y sigue sin salir de Outlook.
-function pintarSeleccionArticulos(idToken, token, pendientes, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+// Pantalla única de revisión antes de escribir nada en Sage: TODOS los artículos (los que se
+// resolvieron solos, de solo lectura, y un <select> por cada uno pendiente de elegir a mano) más
+// la dirección de entrega interpretada del correo (editable, por si hay que corregirla) -
+// directamente en el propio taskpane, sin abrir ninguna pestaña aparte.
+function pintarRevision(idToken, datos, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+  const { token, resueltas, pendientes, direccionEntrega } = datos;
+
+  const filasResueltas = resueltas
+    .map(
+      (l) =>
+        `<div class="card linea-pendiente"><div class="original">${escapeHtml(l.descripcion || l.articulo)} — ${escapeHtml(l.cantidad)} unidades</div></div>`,
+    )
+    .join("");
+
+  const bloquesPendientes = pendientes
+    .map((p, i) => {
+      const opciones = p.candidatos
+        .map(
+          (c) =>
+            `<option value="${escapeHtml(c.articulo)}">${escapeHtml(c.descripcion)} · ${escapeHtml(c.precioUnitario.toFixed(2))} €</option>`,
+        )
+        .join("");
+      return (
+        '<div class="card linea-pendiente">' +
+        `<div class="original">${escapeHtml(p.descripcionOriginal)} — ${escapeHtml(p.cantidad)} unidades</div>` +
+        `<select data-indice="${i}"><option value="" disabled selected>Elige un artículo…</option>${opciones}</select>` +
+        "</div>"
+      );
+    })
+    .join("");
+
   seleccionDiv.innerHTML =
-    pendientes
-      .map((p, i) => {
-        const opciones = p.candidatos
-          .map(
-            (c) =>
-              `<option value="${escapeHtml(c.articulo)}">${escapeHtml(c.descripcion)} · ${escapeHtml(c.precioUnitario.toFixed(2))} €</option>`,
-          )
-          .join("");
-        return (
-          '<div class="card linea-pendiente">' +
-          `<div class="original">${escapeHtml(p.descripcionOriginal)} (x${escapeHtml(p.cantidad)})</div>` +
-          `<select data-indice="${i}"><option value="" disabled selected>Elige un artículo…</option>${opciones}</select>` +
-          "</div>"
-        );
-      })
-      .join("") +
-    '<button id="btnConfirmarSeleccion" style="margin-top:4px;">Confirmar artículos y crear presupuesto</button>';
+    filasResueltas +
+    bloquesPendientes +
+    '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Dirección de entrega' +
+    `<textarea id="direccionEntrega" rows="2" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;font-family:inherit;box-sizing:border-box;">${escapeHtml(direccionEntrega || "")}</textarea>` +
+    "</label>" +
+    '<button id="btnConfirmarSeleccion" style="margin-top:4px;">Confirmar y crear presupuesto</button>';
 
   const selects = Array.from(seleccionDiv.querySelectorAll("select"));
+  const campoDireccion = document.getElementById("direccionEntrega");
   const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
 
   botonConfirmar.addEventListener("click", async () => {
@@ -293,7 +294,7 @@ function pintarSeleccionArticulos(idToken, token, pendientes, emailRemitente, bo
       const respuesta = await fetch(`${BASE_URL}/completar-seleccion`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ token, codigosElegidos }),
+        body: JSON.stringify({ token, codigosElegidos, direccionEntrega: campoDireccion.value }),
       });
       const data = await respuesta.json().catch(() => ({}));
       if (!respuesta.ok) {
@@ -316,7 +317,7 @@ function pintarSeleccionArticulos(idToken, token, pendientes, emailRemitente, bo
       mensajeDiv.innerHTML =
         '<div class="msg err">No se pudo crear el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
       botonConfirmar.disabled = false;
-      botonConfirmar.textContent = "Confirmar artículos y crear presupuesto";
+      botonConfirmar.textContent = "Confirmar y crear presupuesto";
     }
   });
 }
