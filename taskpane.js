@@ -9,11 +9,11 @@ import { createNestablePublicClientApplication, InteractionRequiredAuthError } f
 const CLIENT_ID = "d6bbe6d2-4287-45fd-b976-86cbdf8047ef";
 const TENANT_ID = "3ec777bd-8b86-46a8-800f-6d98eab6bc39";
 
-// Migrado de sage200-mcp a aelis-connect-api (2026-09-29): el nuevo backend ya no depende del
-// agente de Copilot Studio (código determinista + interpretación con Azure OpenAI), y responde
-// SÍNCRONO (sin jobId/polling) porque interpretar el correo y resolver cliente/artículos contra
-// Sage ya es rápido - solo la creación real en Sage 200 puede tardar por el backlog de su cola
-// de importación, y eso ya lo gestiona el propio backend con reintentos internos.
+// Migrado de sage200-mcp a aelis-connect-api (2026-09-29): el backend ya no depende del agente
+// de Copilot Studio - código determinista + interpretación con Azure OpenAI, en dos pasos:
+// /previsualizar SOLO interpreta y resuelve contra Sage (no crea nada, para que se pueda revisar
+// aquí mismo) y /crear escribe el documento en Sage con los datos EXACTOS ya revisados (no
+// vuelve a interpretar nada).
 const BASE_URL = "https://aelis-connect-api.greenbeach-fdb4a5bf.westeurope.azurecontainerapps.io/addin";
 const ADJUNTO_URL = `${BASE_URL}/adjunto`;
 
@@ -66,60 +66,43 @@ async function acquireIdToken() {
   return resultado.idToken;
 }
 
+let itemActual, nombreRemitenteActual, emailRemitenteActual, adjuntosActuales;
+let previsualizacionActual = null; // { cliente, lineas, total } - lo último devuelto por /previsualizar
+
 Office.onReady(() => {
-  const item = Office.context.mailbox.item;
+  itemActual = Office.context.mailbox.item;
   const datosDiv = document.getElementById("datos");
   const adjuntosDiv = document.getElementById("adjuntos");
-  const mensajeDiv = document.getElementById("mensaje");
-  const botonPresupuesto = document.getElementById("btnCrear");
-  const botonPedido = document.getElementById("btnCrearPedido");
+  const botonPrevisualizar = document.getElementById("btnPrevisualizar");
+  const botonCrear = document.getElementById("btnCrear");
+  const botonVolver = document.getElementById("btnVolver");
 
-  const remitente = item.from || item.sender;
-  const nombreRemitente = remitente ? remitente.displayName : "";
-  const emailRemitente = remitente ? remitente.emailAddress : "";
+  const remitente = itemActual.from || itemActual.sender;
+  nombreRemitenteActual = remitente ? remitente.displayName : "";
+  emailRemitenteActual = remitente ? remitente.emailAddress : "";
 
   datosDiv.innerHTML =
-    '<div class="kv"><span>De</span><b>' + escapeHtml(nombreRemitente) + "</b></div>" +
-    '<div class="kv"><span>Email</span><b>' + escapeHtml(emailRemitente) + "</b></div>" +
-    '<div class="kv"><span>Asunto</span><b>' + escapeHtml(item.subject || "") + "</b></div>";
+    '<div class="kv"><span>De</span><b>' + escapeHtml(nombreRemitenteActual) + "</b></div>" +
+    '<div class="kv"><span>Email</span><b>' + escapeHtml(emailRemitenteActual) + "</b></div>" +
+    '<div class="kv"><span>Asunto</span><b>' + escapeHtml(itemActual.subject || "") + "</b></div>";
 
   // isInline descarta las imágenes incrustadas en el cuerpo (logos de firma,
   // etc.): Outlook las expone como adjuntos de tipo File igual que un archivo
   // real, pero no son documentos que el comercial haya adjuntado a mano.
-  const adjuntos = (item.attachments || []).filter(
+  adjuntosActuales = (itemActual.attachments || []).filter(
     (a) => a.attachmentType === Office.MailboxEnums.AttachmentType.File && !a.isInline,
   );
-  if (adjuntos.length > 0) {
+  if (adjuntosActuales.length > 0) {
     adjuntosDiv.innerHTML =
       '<div class="card">' +
-      adjuntos.map((a) => '<div class="attachment">📎 ' + escapeHtml(a.name) + "</div>").join("") +
+      adjuntosActuales.map((a) => '<div class="attachment">📎 ' + escapeHtml(a.name) + "</div>").join("") +
       "</div>";
   }
 
-  botonPresupuesto.disabled = false;
-  botonPresupuesto.addEventListener("click", () =>
-    generar("generar-presupuesto", item, nombreRemitente, emailRemitente, adjuntos, botonPresupuesto, mensajeDiv, {
-      ok: (data) => "Presupuesto creado en Sage 200. Se ha enviado un correo de confirmación a " + escapeHtml(emailRemitente) + ".",
-      listo: "Presupuesto creado",
-      inicial: "Crear presupuesto en Sage 200",
-    }),
-  );
-
-  if (botonPedido) {
-    botonPedido.disabled = false;
-    botonPedido.addEventListener("click", () =>
-      generar("generar-pedido", item, nombreRemitente, emailRemitente, adjuntos, botonPedido, mensajeDiv, {
-        ok: (data) =>
-          'Pedido interpretado. Antes de crearlo en Sage 200, revísalo y confírmalo aquí: <a href="' +
-          data.urlValidacion +
-          '" target="_blank">' +
-          data.urlValidacion +
-          "</a>",
-        listo: "Pedido enviado a validar",
-        inicial: "Crear pedido en Sage 200",
-      }),
-    );
-  }
+  botonPrevisualizar.disabled = false;
+  botonPrevisualizar.addEventListener("click", previsualizar);
+  botonCrear.addEventListener("click", crear);
+  botonVolver.addEventListener("click", volverAPrevisualizar);
 });
 
 function escapeHtml(valor) {
@@ -197,22 +180,41 @@ async function subirAdjunto(idToken, nombreArchivo, contentType, contenidoBase64
   return respuesta.json();
 }
 
-async function generar(endpoint, item, nombreRemitente, emailRemitente, adjuntos, boton, mensajeDiv, textos) {
+function mostrarMensaje(html, clase) {
+  document.getElementById("mensaje").innerHTML = `<div class="msg ${clase || ""}">${html}</div>`;
+}
+
+function renderPrevisualizacion({ cliente, lineas, total }) {
+  const filas = lineas
+    .map(
+      (l) =>
+        `<tr><td>${escapeHtml(l.articulo)}</td><td>${escapeHtml(l.cantidad)}</td><td>${escapeHtml(l.importe.toFixed(2))} €</td></tr>`,
+    )
+    .join("");
+  document.getElementById("previsualizacion").innerHTML =
+    `<div class="kv"><span>Cliente</span><b>${escapeHtml(cliente.nombre)}</b></div>` +
+    `<div class="kv"><span>Email</span><b>${escapeHtml(cliente.email || "(sin email)")}</b></div>` +
+    `<div class="kv"><span>Código Sage</span><b>${escapeHtml(cliente.codigoCliente)}</b></div>` +
+    `<table><thead><tr><th>Artículo</th><th>Cant.</th><th>Importe</th></tr></thead><tbody>${filas}</tbody></table>` +
+    `<div class="total"><span>Total</span><span>${escapeHtml(total.toFixed(2))} €</span></div>`;
+}
+
+async function previsualizar() {
+  const boton = document.getElementById("btnPrevisualizar");
   boton.disabled = true;
-  boton.textContent = "Procesando…";
-  mensajeDiv.innerHTML = '<div class="msg">Leyendo el correo…</div>';
+  boton.textContent = "Leyendo el correo…";
+  mostrarMensaje("");
 
   try {
     const idToken = await acquireIdToken();
-    const cuerpoCorreo = await leerCuerpoCorreo(item);
+    const cuerpoCorreo = await leerCuerpoCorreo(itemActual);
 
     const adjuntosProcesados = [];
-    for (let i = 0; i < adjuntos.length; i++) {
-      const adjunto = adjuntos[i];
-      mensajeDiv.innerHTML =
-        `<div class="msg">Subiendo adjuntos… (${i + 1}/${adjuntos.length}: ${escapeHtml(adjunto.name)})</div>`;
+    for (let i = 0; i < adjuntosActuales.length; i++) {
+      const adjunto = adjuntosActuales[i];
+      mostrarMensaje(`Subiendo adjuntos… (${i + 1}/${adjuntosActuales.length}: ${escapeHtml(adjunto.name)})`);
       try {
-        const contenido = await leerAdjunto(item, adjunto.id);
+        const contenido = await leerAdjunto(itemActual, adjunto.id);
         if (contenido.format === Office.MailboxEnums.AttachmentContentFormat.Base64) {
           const contentTypeOriginal = adjunto.contentType || "application/octet-stream";
           const { base64, contentType } = await comprimirImagenSiProcede(contenido.content, contentTypeOriginal);
@@ -224,15 +226,15 @@ async function generar(endpoint, item, nombreRemitente, emailRemitente, adjuntos
       }
     }
 
-    mensajeDiv.innerHTML = '<div class="msg">Enviando datos a Sage 200…</div>';
+    mostrarMensaje("Interpretando el correo…");
 
-    const respuesta = await fetch(`${BASE_URL}/${endpoint}`, {
+    const respuesta = await fetch(`${BASE_URL}/previsualizar`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({
-        asunto: item.subject || "",
+        asunto: itemActual.subject || "",
         cuerpoCorreo: cuerpoCorreo,
-        remitente: { nombre: nombreRemitente || emailRemitente, email: emailRemitente },
+        remitente: { nombre: nombreRemitenteActual || emailRemitenteActual, email: emailRemitenteActual },
         adjuntos: adjuntosProcesados,
       }),
     });
@@ -242,12 +244,56 @@ async function generar(endpoint, item, nombreRemitente, emailRemitente, adjuntos
       throw new Error(data.error_description || "Error " + respuesta.status);
     }
 
-    mensajeDiv.innerHTML = '<div class="msg ok">' + textos.ok(data) + "</div>";
-    boton.textContent = textos.listo;
+    previsualizacionActual = data;
+    renderPrevisualizacion(data);
+    mostrarMensaje("");
+    document.getElementById("pasoPrevisualizar").classList.add("oculto");
+    document.getElementById("pasoCrear").classList.remove("oculto");
   } catch (err) {
-    mensajeDiv.innerHTML =
-      '<div class="msg err">No se pudo completar la operación: ' + escapeHtml(err.message || String(err)) + "</div>";
+    mostrarMensaje("No se pudo previsualizar: " + escapeHtml(err.message || String(err)), "err");
+  } finally {
     boton.disabled = false;
-    boton.textContent = textos.inicial;
+    boton.textContent = "Previsualizar pedido";
+  }
+}
+
+function volverAPrevisualizar() {
+  previsualizacionActual = null;
+  mostrarMensaje("");
+  document.getElementById("pasoCrear").classList.add("oculto");
+  document.getElementById("pasoPrevisualizar").classList.remove("oculto");
+}
+
+async function crear() {
+  if (!previsualizacionActual) return;
+  const boton = document.getElementById("btnCrear");
+  const tipo = document.querySelector('input[name="tipoDocumento"]:checked').value;
+  boton.disabled = true;
+  boton.textContent = "Creando…";
+  mostrarMensaje("");
+
+  try {
+    const idToken = await acquireIdToken();
+    const respuesta = await fetch(`${BASE_URL}/crear`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ tipo, cliente: previsualizacionActual.cliente, lineas: previsualizacionActual.lineas }),
+    });
+
+    const data = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok) {
+      throw new Error(data.error_description || "Error " + respuesta.status);
+    }
+
+    const textoOk =
+      tipo === "presupuesto"
+        ? "Presupuesto creado en Sage 200. Se ha enviado un correo de confirmación a " + escapeHtml(previsualizacionActual.cliente.email) + "."
+        : "Pedido creado en Sage 200 (documento " + escapeHtml(data.numeroDocumento) + ").";
+    mostrarMensaje(textoOk, "ok");
+    boton.textContent = "Documento creado";
+  } catch (err) {
+    mostrarMensaje("No se pudo crear el documento: " + escapeHtml(err.message || String(err)), "err");
+    boton.disabled = false;
+    boton.textContent = "Crear documento en Sage 200";
   }
 }
