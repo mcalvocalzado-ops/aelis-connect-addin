@@ -310,10 +310,17 @@ function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, men
     })
     .join("");
 
+  const campoEmailCliente = !cliente.email
+    ? '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Email del cliente (no se encontró en Sage)' +
+      '<input id="emailCliente" type="email" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">' +
+      "</label>"
+    : "";
+
   seleccionDiv.innerHTML =
     datosCliente +
     filasResueltas +
     bloquesPendientes +
+    campoEmailCliente +
     '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Dirección de entrega (compárala con la fiscal de arriba)' +
     `<textarea id="direccionEntrega" rows="2" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;font-family:inherit;box-sizing:border-box;">${escapeHtml(direccionEntrega || "")}</textarea>` +
     "</label>" +
@@ -321,6 +328,7 @@ function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, men
 
   const selects = Array.from(seleccionDiv.querySelectorAll("select"));
   const campoDireccion = document.getElementById("direccionEntrega");
+  const campoEmail = document.getElementById("emailCliente");
   const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
 
   botonConfirmar.addEventListener("click", async () => {
@@ -337,7 +345,7 @@ function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, men
     try {
       const { respuesta, data } = await postConReintentoAuth(
         `${BASE_URL}/completar-seleccion`,
-        { token, codigosElegidos, direccionEntrega: campoDireccion.value },
+        { token, codigosElegidos, direccionEntrega: campoDireccion.value, emailCliente: campoEmail ? campoEmail.value : undefined },
         auth,
       );
       if (!respuesta.ok) {
