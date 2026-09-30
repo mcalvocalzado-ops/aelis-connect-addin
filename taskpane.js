@@ -277,7 +277,9 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
 
   const datosCliente =
     '<div class="card">' +
-    `<div class="kv"><span>Cliente</span><b>${escapeHtml(cliente.empresa || cliente.nombre)}</b></div>` +
+    (cliente.empresa || cliente.nombre
+      ? `<div class="kv"><span>Cliente</span><b>${escapeHtml(cliente.empresa || cliente.nombre)}</b></div>`
+      : `<div class="kv"><span>Cliente</span><b style="color:var(--muted);">No se encontró en el correo</b></div>`) +
     (cliente.nif ? `<div class="kv"><span>NIF</span><b>${escapeHtml(cliente.nif)}</b></div>` : "") +
     (cliente.direccionFiscal
       ? `<div class="kv"><span>Dirección fiscal</span><b>${escapeHtml(cliente.direccionFiscal)}</b></div>`
@@ -308,6 +310,12 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
     })
     .join("");
 
+  const campoNombreCliente = !cliente.nombre
+    ? '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Nombre del cliente (el correo no lo mencionaba)' +
+      '<input id="nombreCliente" type="text" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">' +
+      "</label>"
+    : "";
+
   const campoEmailCliente = !cliente.email
     ? '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Email del cliente (no se encontró en Sage)' +
       '<input id="emailCliente" type="email" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">' +
@@ -318,6 +326,7 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
     datosCliente +
     filasResueltas +
     bloquesPendientes +
+    campoNombreCliente +
     campoEmailCliente +
     '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Dirección de entrega (compárala con la fiscal de arriba)' +
     `<textarea id="direccionEntrega" rows="2" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;font-family:inherit;box-sizing:border-box;">${escapeHtml(direccionEntrega || "")}</textarea>` +
@@ -326,6 +335,7 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
 
   const selects = Array.from(seleccionDiv.querySelectorAll("select"));
   const campoDireccion = document.getElementById("direccionEntrega");
+  const campoNombre = document.getElementById("nombreCliente");
   const campoEmail = document.getElementById("emailCliente");
   const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
 
@@ -333,6 +343,10 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
     const codigosElegidos = selects.map((s) => s.value);
     if (codigosElegidos.some((c) => !c)) {
       mensajeDiv.innerHTML = '<div class="msg err">Elige un artículo en cada línea antes de continuar.</div>';
+      return;
+    }
+    if (campoNombre && !campoNombre.value.trim()) {
+      mensajeDiv.innerHTML = '<div class="msg err">Escribe el nombre del cliente antes de continuar.</div>';
       return;
     }
 
@@ -343,7 +357,13 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
     try {
       const { respuesta, data } = await postConReintentoAuth(
         `${BASE_URL}/completar-seleccion`,
-        { token, codigosElegidos, direccionEntrega: campoDireccion.value, emailCliente: campoEmail ? campoEmail.value : undefined },
+        {
+          token,
+          codigosElegidos,
+          direccionEntrega: campoDireccion.value,
+          emailCliente: campoEmail ? campoEmail.value : undefined,
+          nombreCliente: campoNombre ? campoNombre.value : undefined,
+        },
         auth,
       );
       if (!respuesta.ok) {
