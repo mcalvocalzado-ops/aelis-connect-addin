@@ -275,7 +275,16 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 // la dirección de entrega interpretada del correo (editable, por si hay que corregirla) -
 // directamente en el propio taskpane, sin abrir ninguna pestaña aparte.
 function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
-  const { token, resueltas, pendientes, direccionEntrega } = datos;
+  const { token, cliente, resueltas, pendientes, direccionEntrega } = datos;
+
+  const datosCliente =
+    '<div class="card">' +
+    `<div class="kv"><span>Cliente</span><b>${escapeHtml(cliente.empresa || cliente.nombre)}</b></div>` +
+    (cliente.nif ? `<div class="kv"><span>NIF</span><b>${escapeHtml(cliente.nif)}</b></div>` : "") +
+    (cliente.direccionFiscal
+      ? `<div class="kv"><span>Dirección fiscal</span><b>${escapeHtml(cliente.direccionFiscal)}</b></div>`
+      : "") +
+    "</div>";
 
   const filasResueltas = resueltas
     .map(
@@ -302,9 +311,10 @@ function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, men
     .join("");
 
   seleccionDiv.innerHTML =
+    datosCliente +
     filasResueltas +
     bloquesPendientes +
-    '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Dirección de entrega' +
+    '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Dirección de entrega (compárala con la fiscal de arriba)' +
     `<textarea id="direccionEntrega" rows="2" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;font-family:inherit;box-sizing:border-box;">${escapeHtml(direccionEntrega || "")}</textarea>` +
     "</label>" +
     '<button id="btnConfirmarSeleccion" style="margin-top:4px;">Confirmar y crear presupuesto</button>';
