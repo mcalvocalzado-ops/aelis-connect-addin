@@ -111,7 +111,6 @@ Office.onReady(() => {
   const adjuntosDiv = document.getElementById("adjuntos");
   const mensajeDiv = document.getElementById("mensaje");
   const botonCrear = document.getElementById("btnCrear");
-  const botonVisualizar = document.getElementById("btnVisualizar");
 
   const remitente = item.from || item.sender;
   const nombreRemitente = remitente ? remitente.displayName : "";
@@ -139,7 +138,7 @@ Office.onReady(() => {
 
   botonCrear.disabled = false;
   botonCrear.addEventListener("click", () =>
-    crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, botonCrear, botonVisualizar, mensajeDiv, seleccionDiv),
+    crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, botonCrear, mensajeDiv, seleccionDiv),
   );
 });
 
@@ -213,12 +212,11 @@ async function subirAdjunto(auth, nombreArchivo, contentType, contenidoBase64) {
   return data;
 }
 
-async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, mensajeDiv, seleccionDiv) {
   boton.disabled = true;
   boton.textContent = "Creando presupuesto…";
   mensajeDiv.innerHTML = "";
   seleccionDiv.innerHTML = "";
-  botonVisualizar.classList.add("oculto");
 
   const auth = { idToken: null };
   try {
@@ -261,7 +259,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 
     mensajeDiv.innerHTML = "";
     boton.textContent = "Revisa los datos abajo";
-    pintarRevision(auth, data, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
+    pintarRevision(auth, data, emailRemitente, boton, mensajeDiv, seleccionDiv);
   } catch (err) {
     mensajeDiv.innerHTML =
       '<div class="msg err">No se pudo generar el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
@@ -274,7 +272,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 // resolvieron solos, de solo lectura, y un <select> por cada uno pendiente de elegir a mano) más
 // la dirección de entrega interpretada del correo (editable, por si hay que corregirla) -
 // directamente en el propio taskpane, sin abrir ninguna pestaña aparte.
-function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccionDiv) {
   const { token, cliente, resueltas, pendientes, direccionEntrega } = datos;
 
   const datosCliente =
@@ -358,12 +356,9 @@ function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, men
         escapeHtml(emailRemitente) +
         ".</div>";
       boton.textContent = "Presupuesto creado";
-
-      if (data.urlOferta) {
-        botonVisualizar.classList.remove("oculto");
-        botonVisualizar.textContent = "Visualizar oferta";
-        botonVisualizar.onclick = () => window.open(data.urlOferta, "_blank");
-      }
+      // Ya no se ofrece "Visualizar oferta" aquí - ese enlace (con firma + verificación por
+      // OTP) es cosa del cliente, se lo manda el propio correo de confirmación. El comercial
+      // no tiene que (ni debe) firmar en su nombre desde el add-in.
     } catch (err) {
       mensajeDiv.innerHTML =
         '<div class="msg err">No se pudo crear el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
