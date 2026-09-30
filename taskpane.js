@@ -295,6 +295,18 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
 
   const bloquesPendientes = pendientes
     .map((p, i) => {
+      if (p.candidatos.length === 0) {
+        // No se encontró ni un artículo remotamente parecido - no hay nada que ofrecer en un
+        // <select>, así que se deja escribir el código de Sage a mano en vez de bloquear todo
+        // el presupuesto por esta única línea (ver comentario en busqueda.ts).
+        return (
+          '<div class="card linea-pendiente">' +
+          `<div class="original">${escapeHtml(p.descripcionOriginal)} — ${escapeHtml(p.cantidad)} unidades</div>` +
+          '<div style="font-size:12.5px;color:#b45309;margin-bottom:6px;">No se encontró en Sage ningún artículo parecido.</div>' +
+          `<input data-indice="${i}" type="text" placeholder="Código de artículo en Sage" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">` +
+          "</div>"
+        );
+      }
       const opciones = p.candidatos
         .map(
           (c) =>
@@ -333,16 +345,21 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
     "</label>" +
     '<button id="btnConfirmarSeleccion" style="margin-top:4px;">Confirmar y crear presupuesto</button>';
 
-  const selects = Array.from(seleccionDiv.querySelectorAll("select"));
+  // Cada línea pendiente es un <select> (hay candidatos parecidos) o un <input> de texto (no se
+  // encontró nada parecido, ver bloquesPendientes) - se ordenan por data-indice para reconstruir
+  // codigosElegidos en el mismo orden que espera el backend.
+  const camposPendientes = Array.from(seleccionDiv.querySelectorAll("[data-indice]")).sort(
+    (a, b) => Number(a.dataset.indice) - Number(b.dataset.indice),
+  );
   const campoDireccion = document.getElementById("direccionEntrega");
   const campoNombre = document.getElementById("nombreCliente");
   const campoEmail = document.getElementById("emailCliente");
   const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
 
   botonConfirmar.addEventListener("click", async () => {
-    const codigosElegidos = selects.map((s) => s.value);
+    const codigosElegidos = camposPendientes.map((c) => c.value.trim());
     if (codigosElegidos.some((c) => !c)) {
-      mensajeDiv.innerHTML = '<div class="msg err">Elige un artículo en cada línea antes de continuar.</div>';
+      mensajeDiv.innerHTML = '<div class="msg err">Elige o escribe un artículo en cada línea antes de continuar.</div>';
       return;
     }
     if (campoNombre && !campoNombre.value.trim()) {
