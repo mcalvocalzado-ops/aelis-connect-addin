@@ -46,9 +46,26 @@ function idTokenCaducado(idTokenClaims) {
   return idTokenClaims.exp <= Math.floor(Date.now() / 1000);
 }
 
-async function acquireIdToken() {
+// El caché de MSAL vive en localStorage del propio origen del taskpane (GitHub Pages) - eso
+// SOBREVIVE a cerrar y reabrir Outlook (localStorage no se limpia al cerrar la app), así que si
+// el id_token cacheado quedó corrupto/caducado de forma que ni siquiera nuestra propia
+// comprobación de "exp" lo detecta bien, reabrir Outlook no arregla nada. Se usa como último
+// recurso cuando el backend ya rechazó el token (401) pese a que aquí parecía válido.
+function limpiarCacheMsal() {
+  Object.keys(localStorage)
+    .filter((k) => k.includes(CLIENT_ID) || k.toLowerCase().includes("login.windows.net") || k.startsWith("msal."))
+    .forEach((k) => localStorage.removeItem(k));
+  msalInstance = undefined;
+}
+
+async function acquireIdToken(forzarNuevo) {
+  if (forzarNuevo) limpiarCacheMsal();
   await initMsal();
   const tokenRequest = { scopes: ["User.Read"] };
+  if (forzarNuevo) {
+    const resultado = await msalInstance.acquireTokenPopup(tokenRequest);
+    return resultado.idToken;
+  }
   let resultado;
   try {
     resultado = await msalInstance.acquireTokenSilent(tokenRequest);
@@ -63,6 +80,29 @@ async function acquireIdToken() {
     }
   }
   return resultado.idToken;
+}
+
+/**
+ * POST autenticado con un reintento automático: si el backend responde 401 (id_token caducado
+ * o inválido pese a que aquí parecía bueno - ver limpiarCacheMsal), se limpia el caché de MSAL,
+ * se fuerza una reautenticación real y se repite la petición UNA vez con el token nuevo.
+ * `auth.idToken` se actualiza in situ para que las siguientes llamadas ya usen el token fresco.
+ */
+async function postConReintentoAuth(url, body, auth) {
+  const hacerPeticion = () =>
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.idToken}` },
+      body: JSON.stringify(body),
+    });
+
+  let respuesta = await hacerPeticion();
+  if (respuesta.status === 401) {
+    auth.idToken = await acquireIdToken(true);
+    respuesta = await hacerPeticion();
+  }
+  const data = await respuesta.json().catch(() => ({}));
+  return { respuesta, data };
 }
 
 Office.onReady(() => {
@@ -165,17 +205,12 @@ function comprimirImagenSiProcede(base64Original, contentType) {
   });
 }
 
-async function subirAdjunto(idToken, nombreArchivo, contentType, contenidoBase64) {
-  const respuesta = await fetch(ADJUNTO_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ nombreArchivo, contentType, contenidoBase64 }),
-  });
+async function subirAdjunto(auth, nombreArchivo, contentType, contenidoBase64) {
+  const { respuesta, data } = await postConReintentoAuth(ADJUNTO_URL, { nombreArchivo, contentType, contenidoBase64 }, auth);
   if (!respuesta.ok) {
-    const detalle = await respuesta.json().catch(() => ({}));
-    throw new Error(detalle.error_description || `No se pudo subir el adjunto ${nombreArchivo} (error ${respuesta.status}).`);
+    throw new Error(data.error_description || `No se pudo subir el adjunto ${nombreArchivo} (error ${respuesta.status}).`);
   }
-  return respuesta.json();
+  return data;
 }
 
 async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
@@ -185,8 +220,9 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
   seleccionDiv.innerHTML = "";
   botonVisualizar.classList.add("oculto");
 
+  const auth = { idToken: null };
   try {
-    const idToken = await acquireIdToken();
+    auth.idToken = await acquireIdToken();
     const cuerpoCorreo = await leerCuerpoCorreo(item);
 
     const adjuntosProcesados = [];
@@ -199,7 +235,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
         if (contenido.format === Office.MailboxEnums.AttachmentContentFormat.Base64) {
           const contentTypeOriginal = adjunto.contentType || "application/octet-stream";
           const { base64, contentType } = await comprimirImagenSiProcede(contenido.content, contentTypeOriginal);
-          const procesado = await subirAdjunto(idToken, adjunto.name, contentType, base64);
+          const procesado = await subirAdjunto(auth, adjunto.name, contentType, base64);
           adjuntosProcesados.push(procesado);
         }
       } catch (e) {
@@ -209,25 +245,23 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 
     mensajeDiv.innerHTML = '<div class="msg">Interpretando el correo…</div>';
 
-    const respuesta = await fetch(`${BASE_URL}/generar-presupuesto`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({
+    const { respuesta, data } = await postConReintentoAuth(
+      `${BASE_URL}/generar-presupuesto`,
+      {
         asunto: item.subject || "",
         cuerpoCorreo: cuerpoCorreo,
         remitente: { nombre: nombreRemitente || emailRemitente, email: emailRemitente },
         adjuntos: adjuntosProcesados,
-      }),
-    });
-
-    const data = await respuesta.json().catch(() => ({}));
+      },
+      auth,
+    );
     if (!respuesta.ok) {
       throw new Error(data.error_description || "Error " + respuesta.status);
     }
 
     mensajeDiv.innerHTML = "";
     boton.textContent = "Revisa los datos abajo";
-    pintarRevision(idToken, data, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
+    pintarRevision(auth, data, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv);
   } catch (err) {
     mensajeDiv.innerHTML =
       '<div class="msg err">No se pudo generar el presupuesto: ' + escapeHtml(err.message || String(err)) + "</div>";
@@ -240,7 +274,7 @@ async function crearPresupuesto(item, nombreRemitente, emailRemitente, adjuntos,
 // resolvieron solos, de solo lectura, y un <select> por cada uno pendiente de elegir a mano) más
 // la dirección de entrega interpretada del correo (editable, por si hay que corregirla) -
 // directamente en el propio taskpane, sin abrir ninguna pestaña aparte.
-function pintarRevision(idToken, datos, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
+function pintarRevision(auth, datos, emailRemitente, boton, botonVisualizar, mensajeDiv, seleccionDiv) {
   const { token, resueltas, pendientes, direccionEntrega } = datos;
 
   const filasResueltas = resueltas
@@ -291,12 +325,11 @@ function pintarRevision(idToken, datos, emailRemitente, boton, botonVisualizar, 
     mensajeDiv.innerHTML = "";
 
     try {
-      const respuesta = await fetch(`${BASE_URL}/completar-seleccion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ token, codigosElegidos, direccionEntrega: campoDireccion.value }),
-      });
-      const data = await respuesta.json().catch(() => ({}));
+      const { respuesta, data } = await postConReintentoAuth(
+        `${BASE_URL}/completar-seleccion`,
+        { token, codigosElegidos, direccionEntrega: campoDireccion.value },
+        auth,
+      );
       if (!respuesta.ok) {
         throw new Error(data.error_description || "Error " + respuesta.status);
       }
