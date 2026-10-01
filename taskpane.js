@@ -105,6 +105,18 @@ async function postConReintentoAuth(url, body, auth) {
   return { respuesta, data };
 }
 
+/** Igual que postConReintentoAuth pero para GET (ver el buscador de clientes en vivo). */
+async function getConReintentoAuth(url, auth) {
+  const hacerPeticion = () => fetch(url, { headers: { Authorization: `Bearer ${auth.idToken}` } });
+  let respuesta = await hacerPeticion();
+  if (respuesta.status === 401) {
+    auth.idToken = await acquireIdToken(true);
+    respuesta = await hacerPeticion();
+  }
+  const data = await respuesta.json().catch(() => ({}));
+  return { respuesta, data };
+}
+
 Office.onReady(() => {
   const item = Office.context.mailbox.item;
   const datosDiv = document.getElementById("datos");
@@ -324,7 +336,10 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
 
   const campoNombreCliente = !cliente.nombre
     ? '<label style="display:block;margin:10px 0 4px;font-size:12.5px;color:var(--muted);">Nombre del cliente (el correo no lo mencionaba)' +
-      '<input id="nombreCliente" type="text" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">' +
+      '<div style="position:relative;">' +
+      '<input id="nombreCliente" type="text" autocomplete="off" placeholder="Escribe para buscar en Sage…" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;box-sizing:border-box;">' +
+      '<div id="sugerenciasCliente" class="oculto" style="position:absolute;left:0;right:0;top:100%;z-index:10;background:var(--card);border:1.5px solid var(--border);border-radius:8px;margin-top:2px;max-height:180px;overflow:auto;box-shadow:0 2px 8px rgba(0,0,0,.08);"></div>' +
+      "</div>" +
       "</label>"
     : "";
 
@@ -356,6 +371,66 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
   const campoEmail = document.getElementById("emailCliente");
   const botonConfirmar = document.getElementById("btnConfirmarSeleccion");
 
+  // Buscador en vivo del cliente: cada vez que se teclea (con un pequeño debounce para no
+  // disparar una llamada por tecla) se pide a Sage qué clientes contienen ese texto y se pintan
+  // como un desplegable debajo del campo. Elegir uno guarda su código (codigoClienteElegido) para
+  // que el backend lo use directamente sin tener que volver a adivinar por nombre; si la persona
+  // sigue escribiendo después de elegir uno, se asume que quiere otro y se olvida el código.
+  let codigoClienteElegido = null;
+  if (campoNombre) {
+    const sugerenciasDiv = document.getElementById("sugerenciasCliente");
+    let temporizadorBusqueda = null;
+
+    function ocultarSugerencias() {
+      sugerenciasDiv.classList.add("oculto");
+      sugerenciasDiv.innerHTML = "";
+    }
+
+    campoNombre.addEventListener("input", () => {
+      codigoClienteElegido = null;
+      clearTimeout(temporizadorBusqueda);
+      const texto = campoNombre.value.trim();
+      if (texto.length < 2) {
+        ocultarSugerencias();
+        return;
+      }
+      temporizadorBusqueda = setTimeout(async () => {
+        try {
+          const { respuesta, data } = await getConReintentoAuth(
+            `${BASE_URL}/clientes?q=${encodeURIComponent(texto)}`,
+            auth,
+          );
+          if (!respuesta.ok || !data.clientes || data.clientes.length === 0) {
+            ocultarSugerencias();
+            return;
+          }
+          sugerenciasDiv.innerHTML = data.clientes
+            .map(
+              (c, i) =>
+                `<div data-codigo="${escapeHtml(c.codigoCliente)}" data-nombre="${escapeHtml(c.nombre)}" style="padding:8px;cursor:pointer;font-size:13px;${i > 0 ? "border-top:1px solid var(--border);" : ""}">` +
+                `${escapeHtml(c.nombre)}${c.nif ? ` <span style="color:var(--muted);">· ${escapeHtml(c.nif)}</span>` : ""}` +
+                "</div>",
+            )
+            .join("");
+          sugerenciasDiv.classList.remove("oculto");
+        } catch {
+          ocultarSugerencias();
+        }
+      }, 300);
+    });
+
+    sugerenciasDiv.addEventListener("mousedown", (ev) => {
+      const fila = ev.target.closest("[data-codigo]");
+      if (!fila) return;
+      ev.preventDefault();
+      codigoClienteElegido = fila.dataset.codigo;
+      campoNombre.value = fila.dataset.nombre;
+      ocultarSugerencias();
+    });
+
+    campoNombre.addEventListener("blur", () => setTimeout(ocultarSugerencias, 150));
+  }
+
   botonConfirmar.addEventListener("click", async () => {
     const codigosElegidos = camposPendientes.map((c) => c.value.trim());
     if (codigosElegidos.some((c) => !c)) {
@@ -380,6 +455,7 @@ function pintarRevision(auth, datos, emailRemitente, boton, mensajeDiv, seleccio
           direccionEntrega: campoDireccion.value,
           emailCliente: campoEmail ? campoEmail.value : undefined,
           nombreCliente: campoNombre ? campoNombre.value : undefined,
+          codigoCliente: codigoClienteElegido || undefined,
         },
         auth,
       );
